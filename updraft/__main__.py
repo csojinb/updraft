@@ -19,7 +19,7 @@ def get_parser():
     parser.add_argument('module')
     parser.add_argument('api')
     parser.add_argument('-H', '--hostname', default='127.0.0.1')
-    parser.add_argument('-p', '--port', default=5000)
+    parser.add_argument('-p', '--port', default=5000, type=int)
     parser.add_argument('-d', '--use-debugger',
                         action='store_true', default=False)
     parser.add_argument('--no-reload', action='store_false', default=True,
