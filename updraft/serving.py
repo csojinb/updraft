@@ -64,6 +64,7 @@ except ImportError:
 from ._internal import _log
 from ._compat import reraise, wsgi_encoding_dance
 from .urls import url_parse, url_unquote
+from .middleware import BlanketErrorHandlerMiddleware
 from falcon.errors import HTTPInternalServerError
 from falcon import API
 
@@ -177,30 +178,34 @@ class WSGIRequestHandler(BaseHTTPRequestHandler, object):
                     application_iter.close()
                 application_iter = None
 
-        def _socket_error_handler(ex, req, resp, params):
-            self.connection_dropped(ex, environ)
+        # def _socket_error_handler(ex, req, resp, params):
+        #     self.connection_dropped(ex, environ)
 
-        def _blanket_error_handler(ex, req, resp, params):
-            if self.server.passthrough_errors:
-                raise
+        # def _blanket_error_handler(ex, req, resp, params):
+        #     if self.server.passthrough_errors:
+        #         raise
 
+
+
+        #     # if not headers_sent:
+        #     #     del headers_set[:]
+
+        #     raise HTTPInternalServerError(
+        #         title='500 Internal Server Error',
+        #         description=tb)
+
+        # self.server.app.add_error_handler(Exception, _blanket_error_handler)
+        # self.server.app.add_error_handler(socket.error, _socket_error_handler)
+        # self.server.app.add_error_handler(
+        #     socket.timeout, _socket_error_handler)
+
+        try:
+            execute(self.server.app)
+        except Exception:
             import traceback
             tb = traceback.format_exc()
             self.server.log('error', 'Error on request:\n%s', tb)
-
-            if not headers_sent:
-                del headers_set[:]
-
-            raise HTTPInternalServerError(
-                title='500 Internal Server Error',
-                description=tb)
-
-        self.server.app.add_error_handler(Exception, _blanket_error_handler)
-        self.server.app.add_error_handler(socket.error, _socket_error_handler)
-        self.server.app.add_error_handler(
-            socket.timeout, _socket_error_handler)
-
-        execute(self.server.app)
+            raise
 
     def handle(self):
         """Handles a request ignoring dropped connections."""
@@ -561,8 +566,10 @@ def run_simple(hostname, port, application, use_reloader=False,
                         to disable SSL (which is the default).
     """
     if use_debugger:
-        from .debug import DebuggedApplication
-        application = DebuggedApplication(application)
+        from .middleware import PdbDebugMiddleware
+        application = PdbDebugMiddleware(application)
+    else:
+        application = BlanketErrorHandlerMiddleware(application)
 
     def inner():
         make_server(hostname, port, application, threaded,
