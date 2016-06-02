@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+    This module is adapted from the werkzeug.serving module, as are several of
+    its dependencies.
+
+    :copyright: (c) 2014 by the Werkzeug Team, see COPYRIGHT-NOTICE for more
+    details.
+    :license: BSD, see COPYRIGHT-NOTICE for more details.
+
     werkzeug.serving
     ~~~~~~~~~~~~~~~~
 
@@ -32,7 +39,6 @@
     instead of a simple start file.
 
 
-    :copyright: (c) 2014 by the Werkzeug Team, see AUTHORS for more details.
     :license: BSD, see LICENSE for more details.
 """
 from __future__ import with_statement

@@ -1,5 +1,12 @@
 # flake8: noqa
 # This whole file is full of lint errors
+"""
+    This module is adapted from the werkzeug._compat module.
+
+    :copyright: (c) 2014 by the Werkzeug Team, see COPYRIGHT-NOTICE for more
+    details.
+    :license: BSD, see COPYRIGHT-NOTICE for more details.
+"""
 import sys
 import operator
 import functools

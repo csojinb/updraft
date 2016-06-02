@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-    werkzeug._internal
-    ~~~~~~~~~~~~~~~~~~
+    This module is adapted from the werkzeug._internal module. It provides
+    internally used helpers and constants.
 
-    This module provides internally used helpers and constants.
-
-    :copyright: (c) 2014 by the Werkzeug Team, see AUTHORS for more details.
-    :license: BSD, see LICENSE for more details.
+    :copyright: (c) 2014 by the Werkzeug Team, see COPYRIGHT-NOTICE for more
+    details.
+    :license: BSD, see COPYRIGHT-NOTICE for more details.
 """
 import re
 import string

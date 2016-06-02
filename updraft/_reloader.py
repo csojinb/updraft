@@ -1,3 +1,11 @@
+"""
+    This module is adapted from the werkzeug._reloader module.
+
+    :copyright: (c) 2014 by the Werkzeug Team, see COPYRIGHT-NOTICE for more
+    details.
+    :license: BSD, see COPYRIGHT-NOTICE for more details.
+"""
+
 import os
 import sys
 import time
