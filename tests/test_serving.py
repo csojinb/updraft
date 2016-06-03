@@ -45,13 +45,15 @@ def test_absolute_url_request(test_server):
     assert resp.read() == 'YAY'
 
 
-def test_double_slash_path(test_server):
+def test_broken_app_returns_500_response(test_server):
     server = test_server(
         """
         class Resource(object):
             def on_get(self, req, resp):
-                assert 'resource' not in req.env['HTTP_HOST']
-                resp.status = falcon.HTTP_200
-                resp.body = 'YAY'
+                assert False
         """
     )
+
+    resp = requests.get('http://{}/resource'.format(server.addr))
+    assert resp.status_code == 500
+    assert 'Internal Server Error' in resp.text
