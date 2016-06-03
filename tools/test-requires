@@ -1,5 +1,5 @@
+coverage
+flake8
 pytest
 pytest-xprocess
 requests
-
--e .
