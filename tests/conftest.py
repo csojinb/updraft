@@ -26,15 +26,6 @@ def subprocess(xprocess):
     return xprocess
 
 
-def _patch_reloader_loop():
-    def f(x):
-        print('reloader loop finished')
-        return time.sleep(x)
-
-    import updraft._reloader
-    updraft._reloader.ReloaderLoop._sleep = staticmethod(f)
-
-
 class PIDMiddleware(BasicMiddleware):
 
     def __call__(self, environ, start_response):
@@ -49,8 +40,6 @@ def _get_pid_middleware(app):
 
 
 def _dev_server():
-    # import pdb; pdb.set_trace()
-    _patch_reloader_loop()
     sys.path.insert(0, sys.argv[1])
     import testsuite_app
     app = _get_pid_middleware(testsuite_app.app)
@@ -74,7 +63,7 @@ class _ServerInfo(object):
     @property
     def logfile(self):
         if self._logfile is None:
-            self._logfile = self.xprocess.getinfo('dev_server').logpath.open()
+            self._logfile = self.xprocess.getinfo('test_server').logpath.open()
 
         return self._logfile
 
@@ -100,46 +89,73 @@ def test_server(tmpdir, subprocess, request, monkeypatch):
     `kwargs` dict that specifies parameters to pass into the test server.
     """
 
-    def run_test_server(application):
-        app_pkg = tmpdir.mkdir('testsuite_app')
-        appfile = app_pkg.join('__init__.py')
-        appfile.write('\n\n'.join((
-            'import falcon',
-            'kwargs = dict(port=5001)',
-            'app = falcon.API()',
-            textwrap.dedent(application),
-            "app.add_route('/resource', Resource())"
-        )))
+    class TestServer(object):
+        subprocess_name = 'test_server'
+        last_pid = None
 
-        monkeypatch.delitem(sys.modules, 'testsuite_app', raising=False)
-        monkeypatch.syspath_prepend(str(tmpdir))
-        import testsuite_app
-        port = testsuite_app.kwargs['port']
+        def __init__(self, application):
+            self.app_pkg = tmpdir.mkdir('testsuite_app')
+            self.appfile = self.app_pkg.join('__init__.py')
+            self._write_app_to_file(application)
+            self._build_server_info()
+            self._initialize_logfile()
 
-        url_base = 'http://localhost:{}'.format(port)
+        def overwrite_application(self, application):
+            self.appfile.truncate()
+            self._write_app_to_file(application)
 
-        info = _ServerInfo(
-            subprocess,
-            'localhost:{}'.format(port),
-            url_base,
-            port
-        )
+        def request_pid(self):
+            for i in range(20):
+                time.sleep(0.1 * i)
+                try:
+                    self.last_pid = int(requests.get(self.url + '/_getpid',
+                                                     verify=False).text)
+                    return self.last_pid
+                except Exception:
+                    pass
+            return False
 
-        def preparefunc(cwd):
+        def run(self, subprocess):
+            subprocess.ensure(
+                self.subprocess_name, self.preparefunc, restart=True)
+
+        def teardown(self):
+            os.killpg(os.getpgid(self.last_pid), signal.SIGTERM)
+
+        def preparefunc(self, cwd):
             args = [sys.executable, __file__, str(tmpdir)]
-            return info.request_pid, args
+            return self.request_pid, args
 
-        subprocess.ensure('test_server', preparefunc, restart=True)
+        def _write_app_to_file(self, application):
+            self.appfile.write('\n\n'.join((
+                'import falcon',
+                'kwargs = dict(port=5001)',
+                'app = falcon.API()',
+                textwrap.dedent(application),
+                "app.add_route('/resource', Resource())"
+            )))
 
-        def teardown():
-            # Killing the process group that runs the server, not just the
-            # parent process attached. xprocess is confused about Werkzeug's
-            # reloader and won't help here.
-            pid = info.last_pid
-            os.killpg(os.getpgid(pid), signal.SIGTERM)
+        def _build_server_info(self):
+            testsuite_app = self._load_app_as_package()
+            self.port = testsuite_app.kwargs['port']
+            self.addr = 'localhost:{}'.format(self.port)
+            self.url = 'http://{}'.format(self.addr)
 
-        request.addfinalizer(teardown)
+        def _initialize_logfile(self):
+            self.logfile = subprocess.getinfo(self.subprocess_name).logpath.open()
 
-        return info
+        def _load_app_as_package(self):
+            monkeypatch.delitem(sys.modules, 'testsuite_app', raising=False)
+            monkeypatch.syspath_prepend(str(tmpdir))
+            import testsuite_app
+            return testsuite_app
+
+    def run_test_server(application):
+        server = TestServer(application)
+        server.run(subprocess)
+
+        request.addfinalizer(server.teardown)
+
+        return server
 
     return run_test_server
