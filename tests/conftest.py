@@ -22,7 +22,8 @@ from updraft._compat import to_bytes
 
 @pytest.fixture
 def subprocess(xprocess):
-    # Note: this fixture is provided by the pytest-xprocess plugin
+    # NOTE(csojinb): for reasons I don't understand, doing this seems to
+    # prevent some test-flakiness
     return xprocess
 
 
