@@ -105,6 +105,13 @@ def test_server(tmpdir, subprocess, request, monkeypatch):
                 self.subprocess_name, self.preparefunc, restart=True)
 
         def teardown(self):
+            # NOTE(csojinb): Comment below copied from Werkzeug! Not sure what
+            # exactly the problem is with xprocess, but removing this teardown
+            # does seem to cause some sort of state leakage between test runs
+            #
+            # Killing the process group that runs the server, not just the
+            # parent process attached. xprocess is confused about Werkzeug's
+            # reloader and won't help here.
             os.killpg(os.getpgid(self.last_pid), signal.SIGTERM)
 
         def preparefunc(self, cwd):
