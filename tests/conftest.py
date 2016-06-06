@@ -26,15 +26,6 @@ def subprocess(xprocess):
     return xprocess
 
 
-def _patch_reloader_loop():
-    def f(x):
-        print('reloader loop finished')
-        return time.sleep(x)
-
-    import updraft._reloader
-    updraft._reloader.ReloaderLoop._sleep = staticmethod(f)
-
-
 class PIDMiddleware(BasicMiddleware):
 
     def __call__(self, environ, start_response):
@@ -49,7 +40,6 @@ def _get_pid_middleware(app):
 
 
 def _dev_server():
-    _patch_reloader_loop()
     sys.path.insert(0, sys.argv[1])
     import testsuite_app
     app = _get_pid_middleware(testsuite_app.app)
@@ -79,7 +69,6 @@ def test_server(tmpdir, subprocess, request, monkeypatch):
             self.appfile = self.app_pkg.join('__init__.py')
             self._write_app_to_file(application)
             self._build_server_info()
-            self._initialize_logfile()
 
             self.subprocess = subprocess
 
@@ -136,9 +125,6 @@ def test_server(tmpdir, subprocess, request, monkeypatch):
             self.port = testsuite_app.kwargs['port']
             self.addr = 'localhost:{}'.format(self.port)
             self.url = 'http://{}'.format(self.addr)
-
-        def _initialize_logfile(self):
-            self.logfile = subprocess.getinfo(self.subprocess_name).logpath.open()
 
         def _load_app_as_package(self):
             monkeypatch.delitem(sys.modules, 'testsuite_app', raising=False)
