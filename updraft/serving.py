@@ -184,27 +184,6 @@ class WSGIRequestHandler(BaseHTTPRequestHandler, object):
                     application_iter.close()
                 application_iter = None
 
-        # def _socket_error_handler(ex, req, resp, params):
-        #     self.connection_dropped(ex, environ)
-
-        # def _blanket_error_handler(ex, req, resp, params):
-        #     if self.server.passthrough_errors:
-        #         raise
-
-
-
-        #     # if not headers_sent:
-        #     #     del headers_set[:]
-
-        #     raise HTTPInternalServerError(
-        #         title='500 Internal Server Error',
-        #         description=tb)
-
-        # self.server.app.add_error_handler(Exception, _blanket_error_handler)
-        # self.server.app.add_error_handler(socket.error, _socket_error_handler)
-        # self.server.app.add_error_handler(
-        #     socket.timeout, _socket_error_handler)
-
         try:
             execute(self.server.app)
         except Exception:
@@ -414,13 +393,12 @@ class BaseWSGIServer(HTTPServer, object):
     request_queue_size = 128
 
     def __init__(self, host, port, app, handler=None,
-                 passthrough_errors=False, ssl_context=None):
+                 ssl_context=None):
         if handler is None:
             handler = WSGIRequestHandler
         self.address_family = select_ip_version(host, port)
         HTTPServer.__init__(self, (host, int(port)), handler)
         self.app = app
-        self.passthrough_errors = passthrough_errors
         self.shutdown_signal = False
 
         if ssl_context is not None:
@@ -447,52 +425,16 @@ class BaseWSGIServer(HTTPServer, object):
             self.server_close()
 
     def handle_error(self, request, client_address):
-        if self.passthrough_errors:
-            raise
-        else:
-            return HTTPServer.handle_error(self, request, client_address)
+        return HTTPServer.handle_error(self, request, client_address)
 
     def get_request(self):
         con, info = self.socket.accept()
         return con, info
 
 
-class ThreadedWSGIServer(ThreadingMixIn, BaseWSGIServer):
-
-    """A WSGI server that does threading."""
-    multithread = True
-
-
-class ForkingWSGIServer(ForkingMixIn, BaseWSGIServer):
-
-    """A WSGI server that does forking."""
-    multiprocess = True
-
-    def __init__(self, host, port, app, processes=40, handler=None,
-                 passthrough_errors=False, ssl_context=None):
-        BaseWSGIServer.__init__(self, host, port, app, handler,
-                                passthrough_errors, ssl_context)
-        self.max_children = processes
-
-
-def make_server(host, port, app=None, threaded=False, processes=1,
-                request_handler=None, passthrough_errors=False,
-                ssl_context=None):
-    """Create a new server instance that is either threaded, or forks
-    or just processes one request after another.
-    """
-    if threaded and processes > 1:
-        raise ValueError("cannot have a multithreaded and "
-                         "multi process server.")
-    elif threaded:
-        return ThreadedWSGIServer(host, port, app, request_handler,
-                                  passthrough_errors, ssl_context)
-    elif processes > 1:
-        return ForkingWSGIServer(host, port, app, processes, request_handler,
-                                 passthrough_errors, ssl_context)
-    else:
-        return BaseWSGIServer(host, port, app, request_handler,
-                              passthrough_errors, ssl_context)
+def make_server(host, port, app=None, request_handler=None):
+    """Create a new server instance."""
+    return BaseWSGIServer(host, port, app, request_handler)
 
 
 def is_running_from_reloader():
@@ -506,9 +448,6 @@ def is_running_from_reloader():
 
 def run_simple(hostname, port, application, use_reloader=False,
                use_debugger=False, extra_files=None, reloader_interval=1,
-               reloader_type='auto', threaded=False,
-               processes=1, request_handler=None, static_files=None,
-               passthrough_errors=False, ssl_context=None,
                debug_method=None):
     """Start a WSGI application. Optional features include a reloader,
     multithreading and fork support.
@@ -546,31 +485,7 @@ def run_simple(hostname, port, application, use_reloader=False,
                         additionally to the modules.  For example configuration
                         files.
     :param reloader_interval: the interval for the reloader in seconds.
-    :param reloader_type: the type of reloader to use.  The default is
-                          auto detection.  Valid values are ``'stat'`` and
-                          ``'watchdog'``. See :ref:`reloader` for more
-                          information.
-    :param threaded: should the process handle each request in a separate
-                     thread?
-    :param processes: if greater than 1 then handle each request in a new process
-                      up to this maximum number of concurrent processes.
-    :param request_handler: optional parameter that can be used to replace
-                            the default one.  You can use this to replace it
-                            with a different
-                            :class:`~BaseHTTPServer.BaseHTTPRequestHandler`
-                            subclass.
-    :param static_files: a dict of paths for static files.  This works exactly
-                         like :class:`SharedDataMiddleware`, it's actually
-                         just wrapping the application in that middleware before
-                         serving.
-    :param passthrough_errors: set this to `True` to disable the error catching.
-                               This means that the server will die on errors but
-                               it can be useful to hook debuggers in (pdb etc.)
-    :param ssl_context: an SSL context for the connection. Either an
-                        :class:`ssl.SSLContext`, a tuple in the form
-                        ``(cert_file, pkey_file)``, the string ``'adhoc'`` if
-                        the server should automatically create one, or ``None``
-                        to disable SSL (which is the default).
+    :param debug_method:
     """
     if use_debugger:
         from .middleware import PdbDebugMiddleware
@@ -580,17 +495,16 @@ def run_simple(hostname, port, application, use_reloader=False,
         application = BlanketErrorHandlerMiddleware(application)
 
     def inner():
-        make_server(hostname, port, application, threaded,
-                    processes, request_handler,
-                    passthrough_errors, ssl_context).serve_forever()
+        make_server(hostname, port, application).serve_forever()
 
     if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
         display_hostname = hostname != '*' and hostname or 'localhost'
         if ':' in display_hostname:
             display_hostname = '[%s]' % display_hostname
         quit_msg = '(Press CTRL+C to quit)'
-        _log('info', ' * Running on %s://%s:%d/ %s', ssl_context is None
-             and 'http' or 'https', display_hostname, port, quit_msg)
+        _log('info', ' * Running on http://{}:{}/ {}'.format(
+            display_hostname, port, quit_msg))
+
     if use_reloader:
         # Create and destroy a socket so that any exceptions are raised before
         # we spawn a separate Python interpreter and lose this ability.
@@ -600,49 +514,10 @@ def run_simple(hostname, port, application, use_reloader=False,
         test_socket.bind((hostname, port))
         test_socket.close()
 
+        reloader_type = 'auto'
+
         from ._reloader import run_with_reloader
         run_with_reloader(inner, extra_files, reloader_interval,
                           reloader_type)
     else:
         inner()
-
-
-# def main():
-#     '''A simple command-line interface for :py:func:`run_simple`.'''
-
-#     # in contrast to argparse, this works at least under Python < 2.7
-#     import optparse
-#     from werkzeug.utils import import_string
-
-#     parser = optparse.OptionParser(
-#         usage='Usage: %prog [options] app_module:app_object')
-#     parser.add_option('-b', '--bind', dest='address',
-#                       help='The hostname:port the app should listen on.')
-#     parser.add_option('-d', '--debug', dest='use_debugger',
-#                       action='store_true', default=False,
-#                       help='Use Werkzeug\'s debugger.')
-#     parser.add_option('-r', '--reload', dest='use_reloader',
-#                       action='store_true', default=False,
-#                       help='Reload Python process if modules change.')
-#     options, args = parser.parse_args()
-
-#     hostname, port = None, None
-#     if options.address:
-#         address = options.address.split(':')
-#         hostname = address[0]
-#         if len(address) > 1:
-#             port = address[1]
-
-#     if len(args) != 1:
-#         sys.stdout.write('No application supplied, or too much. See --help\n')
-#         sys.exit(1)
-#     app = import_string(args[0])
-
-#     run_simple(
-#         hostname=(hostname or '127.0.0.1'), port=int(port or 5000),
-#         application=app, use_reloader=options.use_reloader,
-#         use_debugger=options.use_debugger
-#     )
-
-# if __name__ == '__main__':
-#     main()
