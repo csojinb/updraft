@@ -508,7 +508,8 @@ def run_simple(hostname, port, application, use_reloader=False,
                use_debugger=False, extra_files=None, reloader_interval=1,
                reloader_type='auto', threaded=False,
                processes=1, request_handler=None, static_files=None,
-               passthrough_errors=False, ssl_context=None):
+               passthrough_errors=False, ssl_context=None,
+               debug_method=None):
     """Start a WSGI application. Optional features include a reloader,
     multithreading and fork support.
 
@@ -573,7 +574,8 @@ def run_simple(hostname, port, application, use_reloader=False,
     """
     if use_debugger:
         from .middleware import PdbDebugMiddleware
-        application = PdbDebugMiddleware(application)
+        kwargs = {'debug_method': debug_method} if debug_method else {}
+        application = PdbDebugMiddleware(application, **kwargs)
     else:
         application = BlanketErrorHandlerMiddleware(application)
 

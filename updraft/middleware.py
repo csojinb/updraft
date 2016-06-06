@@ -43,8 +43,7 @@ class PdbDebugMiddleware(BasicMiddleware):
         app.add_error_handler(Exception, self.debug)
         self.app = app
 
-    @staticmethod
-    def debug(ex, req, resp, params):
+    def debug(self, ex, req, resp, params):
         self.debug_method()
         BlanketErrorHandlerMiddleware.handle_uncaught_exceptions(
             ex, req, resp, params)
