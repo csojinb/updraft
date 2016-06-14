@@ -86,8 +86,8 @@ class WSGIRequestHandler(BaseHTTPRequestHandler, object):
             'wsgi.url_scheme':      url_scheme,
             'wsgi.input':           self.rfile,
             'wsgi.errors':          sys.stderr,
-            'wsgi.multithread':     self.server.multithread,
-            'wsgi.multiprocess':    self.server.multiprocess,
+            'wsgi.multithread':     False,
+            'wsgi.multiprocess':    False,
             'wsgi.run_once':        False,
             'werkzeug.server.shutdown': shutdown_server,
             'SERVER_SOFTWARE':      self.server_version,
@@ -272,17 +272,13 @@ def select_ip_version(host, port):
 class BaseWSGIServer(HTTPServer, object):
 
     """Simple single-threaded, single-process WSGI server."""
-    multithread = False
-    multiprocess = False
     request_queue_size = 128
 
-    def __init__(self, host, port, app, ssl_context=None):
+    def __init__(self, host, port, app):
         self.address_family = select_ip_version(host, port)
         HTTPServer.__init__(self, (host, int(port)), WSGIRequestHandler)
         self.app = app
         self.shutdown_signal = False
-
-        self.ssl_context = ssl_context
 
     def log(self, type, message, *args):
         _log(type, message, *args)
@@ -302,11 +298,6 @@ class BaseWSGIServer(HTTPServer, object):
     def get_request(self):
         con, info = self.socket.accept()
         return con, info
-
-
-def make_server(host, port, app=None, request_handler=None):
-    """Create a new server instance."""
-    return BaseWSGIServer(host, port, app, request_handler)
 
 
 def is_running_from_reloader():
@@ -366,8 +357,8 @@ def run_simple(hostname, port, application, use_reloader=False,
     else:
         application = BlanketErrorHandlerMiddleware(application)
 
-    def inner():
-        make_server(hostname, port, application).serve_forever()
+    def run_server():
+        BaseWSGIServer(hostname, port, application).serve_forever()
 
     if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
         display_hostname = hostname != '*' and hostname or 'localhost'
@@ -389,7 +380,7 @@ def run_simple(hostname, port, application, use_reloader=False,
         reloader_type = 'auto'
 
         from ._reloader import run_with_reloader
-        run_with_reloader(inner, extra_files, reloader_interval,
+        run_with_reloader(run_server, extra_files, reloader_interval,
                           reloader_type)
     else:
-        inner()
+        run_server()
