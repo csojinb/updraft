@@ -46,18 +46,7 @@ from __future__ import with_statement
 import os
 import socket
 import sys
-import ssl
 import signal
-
-
-def _get_openssl_crypto_module():
-    try:
-        from OpenSSL import crypto
-    except ImportError:
-        raise TypeError('Using ad-hoc certificates requires the pyOpenSSL '
-                        'library.')
-    else:
-        return crypto
 
 
 try:
@@ -89,7 +78,7 @@ class WSGIRequestHandler(BaseHTTPRequestHandler, object):
         def shutdown_server():
             self.server.shutdown_signal = True
 
-        url_scheme = self.server.ssl_context is None and 'http' or 'https'
+        url_scheme = 'http'
         path_info = url_unquote(request_url.path)
 
         environ = {
@@ -199,9 +188,7 @@ class WSGIRequestHandler(BaseHTTPRequestHandler, object):
             rv = BaseHTTPRequestHandler.handle(self)
         except (socket.error, socket.timeout) as e:
             self.connection_dropped(e)
-        except Exception:
-            if self.server.ssl_context is None or not is_ssl_error():
-                raise
+
         if self.server.shutdown_signal:
             self.initiate_shutdown()
         return rv
@@ -263,109 +250,6 @@ class WSGIRequestHandler(BaseHTTPRequestHandler, object):
                                          message % args))
 
 
-def generate_adhoc_ssl_pair(cn=None):
-    from random import random
-    crypto = _get_openssl_crypto_module()
-
-    # pretty damn sure that this is not actually accepted by anyone
-    if cn is None:
-        cn = '*'
-
-    cert = crypto.X509()
-    cert.set_serial_number(int(random() * sys.maxsize))
-    cert.gmtime_adj_notBefore(0)
-    cert.gmtime_adj_notAfter(60 * 60 * 24 * 365)
-
-    subject = cert.get_subject()
-    subject.CN = cn
-    subject.O = 'Dummy Certificate'
-
-    issuer = cert.get_issuer()
-    issuer.CN = 'Untrusted Authority'
-    issuer.O = 'Self-Signed'
-
-    pkey = crypto.PKey()
-    pkey.generate_key(crypto.TYPE_RSA, 1024)
-    cert.set_pubkey(pkey)
-    cert.sign(pkey, 'md5')
-
-    return cert, pkey
-
-
-def generate_adhoc_ssl_context():
-    """Generates an adhoc SSL context for the development server."""
-    crypto = _get_openssl_crypto_module()
-    import tempfile
-    import atexit
-
-    cert, pkey = generate_adhoc_ssl_pair()
-    cert_handle, cert_file = tempfile.mkstemp()
-    pkey_handle, pkey_file = tempfile.mkstemp()
-    atexit.register(os.remove, pkey_file)
-    atexit.register(os.remove, cert_file)
-
-    os.write(cert_handle, crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
-    os.write(pkey_handle, crypto.dump_privatekey(crypto.FILETYPE_PEM, pkey))
-    os.close(cert_handle)
-    os.close(pkey_handle)
-    ctx = load_ssl_context(cert_file, pkey_file)
-    return ctx
-
-
-def load_ssl_context(cert_file, pkey_file=None, protocol=None):
-    """Loads SSL context from cert/private key files and optional protocol.
-    Many parameters are directly taken from the API of
-    :py:class:`ssl.SSLContext`.
-
-    :param cert_file: Path of the certificate to use.
-    :param pkey_file: Path of the private key to use. If not given, the key
-                      will be obtained from the certificate file.
-    :param protocol: One of the ``PROTOCOL_*`` constants in the stdlib ``ssl``
-                     module. Defaults to ``PROTOCOL_SSLv23``.
-    """
-    if protocol is None:
-        protocol = ssl.PROTOCOL_SSLv23
-    ctx = _SSLContext(protocol)
-    ctx.load_cert_chain(cert_file, pkey_file)
-    return ctx
-
-
-class _SSLContext(object):
-
-    '''A dummy class with a small subset of Python3's ``ssl.SSLContext``, only
-    intended to be used with and by Werkzeug.'''
-
-    def __init__(self, protocol):
-        self._protocol = protocol
-        self._certfile = None
-        self._keyfile = None
-        self._password = None
-
-    def load_cert_chain(self, certfile, keyfile=None, password=None):
-        self._certfile = certfile
-        self._keyfile = keyfile or certfile
-        self._password = password
-
-    def wrap_socket(self, sock, **kwargs):
-        return ssl.wrap_socket(sock, keyfile=self._keyfile,
-                               certfile=self._certfile,
-                               ssl_version=self._protocol, **kwargs)
-
-
-def is_ssl_error(error=None):
-    """Checks if the given error (or the current one) is an SSL error."""
-    exc_types = (ssl.SSLError,)
-    try:
-        from OpenSSL.SSL import Error
-        exc_types += (Error,)
-    except ImportError:
-        pass
-
-    if error is None:
-        error = sys.exc_info()[1]
-    return isinstance(error, exc_types)
-
-
 def select_ip_version(host, port):
     """Returns AF_INET4 or AF_INET6 depending on where to connect to."""
     # disabled due to problems with current ipv6 implementations
@@ -392,25 +276,13 @@ class BaseWSGIServer(HTTPServer, object):
     multiprocess = False
     request_queue_size = 128
 
-    def __init__(self, host, port, app, handler=None,
-                 ssl_context=None):
-        if handler is None:
-            handler = WSGIRequestHandler
+    def __init__(self, host, port, app, ssl_context=None):
         self.address_family = select_ip_version(host, port)
-        HTTPServer.__init__(self, (host, int(port)), handler)
+        HTTPServer.__init__(self, (host, int(port)), WSGIRequestHandler)
         self.app = app
         self.shutdown_signal = False
 
-        if ssl_context is not None:
-            if isinstance(ssl_context, tuple):
-                ssl_context = load_ssl_context(*ssl_context)
-            if ssl_context == 'adhoc':
-                ssl_context = generate_adhoc_ssl_context()
-            self.socket = ssl_context.wrap_socket(self.socket,
-                                                  server_side=True)
-            self.ssl_context = ssl_context
-        else:
-            self.ssl_context = None
+        self.ssl_context = ssl_context
 
     def log(self, type, message, *args):
         _log(type, message, *args)
