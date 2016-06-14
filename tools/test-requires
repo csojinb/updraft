@@ -1,5 +1,6 @@
 coverage
 flake8
+flaky
 pytest
 pytest-xprocess
 requests
