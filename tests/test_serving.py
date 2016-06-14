@@ -107,11 +107,11 @@ def test_application_reloads_when_code_changes(test_server):
     url = 'http://{}/resource'.format(server.addr)
     resp1 = requests.get(url)
 
-    server.overwrite_application(app_string.format(body2))
-    resp2 = requests.get(url)
-
     assert resp1.status_code == 200
     assert resp1.content == body1
+
+    server.overwrite_application(app_string.format(body2))
+    resp2 = requests.get(url)
 
     assert resp2.status_code == 200
     assert resp2.content == body2
