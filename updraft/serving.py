@@ -169,13 +169,7 @@ class WSGIRequestHandler(BaseHTTPRequestHandler, object):
                     application_iter.close()
                 application_iter = None
 
-        try:
-            execute(self.server.app)
-        except Exception:
-            import traceback
-            tb = traceback.format_exc()
-            self.server.log('error', 'Error on request:\n%s', tb)
-            raise
+        execute(self.server.app)
 
     def handle(self):
         """Handles a request ignoring dropped connections."""
