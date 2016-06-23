@@ -124,13 +124,18 @@ class ReloaderLoop(object):
             # environment and subprocess.call does not like this, encode them
             # to latin1 and continue.
             if os.name == 'nt' and PY2:
-                for key, value in iteritems(new_environ):
-                    if isinstance(value, text_type):
-                        new_environ[key] = value.encode('iso-8859-1')
+                new_environ = self._encode_latin1(new_environ)
 
             exit_code = subprocess.call(args, env=new_environ)
             if exit_code != 3:
                 return exit_code
+
+    @staticmethod
+    def _encode_latin1(environ):
+        return dict(
+            (key, value.encode(
+                'iso-8859-1') if isinstance(value, text_type) else value)
+            for key, value in iteritems(environ))
 
     def trigger_reload(self, filename):
         self.log_reload(filename)
