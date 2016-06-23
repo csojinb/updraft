@@ -56,6 +56,7 @@ except ImportError:
 
 from ._internal import _log
 from ._compat import reraise, wsgi_encoding_dance
+from ._reloader import is_running_from_reloader
 from .urls import url_parse, url_unquote
 from .middleware import BlanketErrorHandlerMiddleware
 
@@ -190,7 +191,7 @@ class WSGIRequestHandler(BaseHTTPRequestHandler, object):
         # Windows does not provide SIGKILL, go with SIGTERM then.
         sig = getattr(signal, 'SIGKILL', signal.SIGTERM)
         # reloader active
-        if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        if is_running_from_reloader():
             os.kill(os.getpid(), sig)
         # python 2.7
         self.server._BaseServer__shutdown_request = True
@@ -290,15 +291,6 @@ class BaseWSGIServer(HTTPServer, object):
         return con, info
 
 
-def is_running_from_reloader():
-    """Checks if the application is running from within the Werkzeug
-    reloader subprocess.
-
-    .. versionadded:: 0.10
-    """
-    return os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
-
-
 def run_simple(hostname, port, application, use_reloader=False,
                use_debugger=False, extra_files=None, reloader_interval=1,
                debug_method=None):
@@ -350,7 +342,7 @@ def run_simple(hostname, port, application, use_reloader=False,
     def run_server():
         BaseWSGIServer(hostname, port, application).serve_forever()
 
-    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+    if not is_running_from_reloader():
         display_hostname = hostname != '*' and hostname or 'localhost'
         if ':' in display_hostname:
             display_hostname = '[%s]' % display_hostname

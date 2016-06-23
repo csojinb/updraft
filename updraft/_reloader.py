@@ -152,7 +152,7 @@ def run_with_reloader(main_func, extra_files=None, interval=1):
     reloader = ReloaderLoop(extra_files, interval)
     signal.signal(signal.SIGTERM, lambda *args: sys.exit(0))
     try:
-        if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        if is_running_from_reloader():
             t = threading.Thread(target=main_func, args=())
             t.setDaemon(True)
             t.start()
@@ -161,3 +161,9 @@ def run_with_reloader(main_func, extra_files=None, interval=1):
             sys.exit(reloader.restart_with_reloader())
     except KeyboardInterrupt:
         pass
+
+
+def is_running_from_reloader():
+    """Check if the application is running from within the reloader subprocess.
+    """
+    return os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
