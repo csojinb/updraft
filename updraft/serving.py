@@ -367,10 +367,7 @@ def run_simple(hostname, port, application, use_reloader=False,
         test_socket.bind((hostname, port))
         test_socket.close()
 
-        reloader_type = 'auto'
-
         from ._reloader import run_with_reloader
-        run_with_reloader(run_server, extra_files, reloader_interval,
-                          reloader_type)
+        run_with_reloader(run_server, extra_files, reloader_interval)
     else:
         run_server()

@@ -234,24 +234,10 @@ class WatchdogReloaderLoop(ReloaderLoop):
         sys.exit(3)
 
 
-reloader_loops = {
-    'stat': StatReloaderLoop,
-    'watchdog': WatchdogReloaderLoop,
-}
-
-try:
-    __import__('watchdog.observers')
-except ImportError:
-    reloader_loops['auto'] = reloader_loops['stat']
-else:
-    reloader_loops['auto'] = reloader_loops['watchdog']
-
-
-def run_with_reloader(main_func, extra_files=None, interval=1,
-                      reloader_type='auto'):
+def run_with_reloader(main_func, extra_files=None, interval=1):
     """Run the given function in an independent python interpreter."""
     import signal
-    reloader = reloader_loops[reloader_type](extra_files, interval)
+    reloader = StatReloaderLoop(extra_files, interval)
     signal.signal(signal.SIGTERM, lambda *args: sys.exit(0))
     try:
         if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
