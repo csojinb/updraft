@@ -50,18 +50,14 @@ import signal
 
 
 try:
-    from SocketServer import ThreadingMixIn, ForkingMixIn
     from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 except ImportError:
-    from socketserver import ThreadingMixIn, ForkingMixIn
     from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from ._internal import _log
 from ._compat import reraise, wsgi_encoding_dance
 from .urls import url_parse, url_unquote
 from .middleware import BlanketErrorHandlerMiddleware
-from falcon.errors import HTTPInternalServerError
-from falcon import API
 
 
 class WSGIRequestHandler(BaseHTTPRequestHandler, object):
