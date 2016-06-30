@@ -41,44 +41,6 @@ def _iter_module_files():
                 yield filename
 
 
-def _find_observable_paths(extra_files=None):
-    """Finds all paths that should be observed."""
-    rv = set(os.path.abspath(x) for x in sys.path)
-
-    for filename in extra_files or ():
-        rv.add(os.path.dirname(os.path.abspath(filename)))
-
-    for module in list(sys.modules.values()):
-        fn = getattr(module, '__file__', None)
-        if fn is None:
-            continue
-        fn = os.path.abspath(fn)
-        rv.add(os.path.dirname(fn))
-
-    return _find_common_roots(rv)
-
-
-def _find_common_roots(paths):
-    """Out of some paths it finds the common roots that need monitoring."""
-    paths = [x.split(os.path.sep) for x in paths]
-    root = {}
-    for chunks in sorted(paths, key=len, reverse=True):
-        node = root
-        for chunk in chunks:
-            node = node.setdefault(chunk, {})
-        node.clear()
-
-    rv = set()
-
-    def _walk(node, path):
-        for prefix, child in iteritems(node):
-            _walk(child, path + (prefix,))
-        if not node:
-            rv.add('/'.join(path))
-    _walk(root, ())
-    return rv
-
-
 class ReloaderLoop(object):
     name = 'stat'
 
@@ -94,7 +56,7 @@ class ReloaderLoop(object):
 
     def run(self):
         mtimes = {}
-        while 1:
+        while True:
             for filename in chain(_iter_module_files(),
                                   self.extra_files):
                 try:
@@ -106,8 +68,10 @@ class ReloaderLoop(object):
                 if old_time is None:
                     mtimes[filename] = mtime
                     continue
+
                 elif mtime > old_time:
                     self.trigger_reload(filename)
+
             self._sleep(self.interval)
 
     def restart_with_reloader(self):
