@@ -24,9 +24,7 @@ def _iter_module_files():
     """
     # The list call is necessary on Python 3 in case the module
     # dictionary modifies during iteration.
-    for module in list(sys.modules.values()):
-        if module is None:
-            continue
+    for module in [m for m in sys.modules.values() if m is not None]:
         filename = getattr(module, '__file__', None)
         if filename:
             old = None
@@ -36,9 +34,12 @@ def _iter_module_files():
                 if filename == old:
                     break
             else:
-                if filename[-4:] in ('.pyc', '.pyo'):
-                    filename = filename[:-1]
-                yield filename
+                yield _clean_compiled_pyfiles(filename)
+
+
+def _clean_compiled_pyfiles(filename):
+    root, ext = os.path.splitext(filename)
+    return filename[:-1] if ext in ('.pyc', '.pyo') else filename
 
 
 class ReloaderLoop(object):
