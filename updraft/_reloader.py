@@ -25,16 +25,27 @@ def _iter_module_files():
     # The list call is necessary on Python 3 in case the module
     # dictionary modifies during iteration.
     for module in [m for m in sys.modules.values() if m is not None]:
-        filename = getattr(module, '__file__', None)
-        if filename:
-            old = None
-            while not os.path.isfile(filename):
-                old = filename
-                filename = os.path.dirname(filename)
-                if filename == old:
-                    break
-            else:
-                yield _clean_compiled_pyfiles(filename)
+        filename = _module_file_or_containing_zip_archive(module)
+        if filename is not None:
+            yield _clean_compiled_pyfiles(filename)
+
+
+def _module_file_or_containing_zip_archive(module):
+    filename = getattr(module, '__file__', None)
+    if not (filename is None or os.path.isfile(filename)):
+        filename = _find_zip_archive_path(filename)
+
+    return filename
+
+
+def _find_zip_archive_path(filename):
+    while not os.path.isfile(filename):
+        old = filename
+        filename = os.path.dirname(filename)
+        if filename == old:
+            return None
+
+    return filename
 
 
 def _clean_compiled_pyfiles(filename):
