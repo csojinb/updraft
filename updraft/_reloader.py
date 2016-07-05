@@ -69,8 +69,7 @@ class ReloaderLoop(object):
     def run(self):
         mtimes = {}
         while True:
-            for filename in chain(_iter_module_files(),
-                                  self.extra_files):
+            for filename in chain(_iter_module_files(), self.extra_files):
                 try:
                     mtime = os.stat(filename).st_mtime
                 except OSError:
@@ -90,7 +89,7 @@ class ReloaderLoop(object):
         """Spawn a new Python interpreter with the same arguments as this one,
         but running the reloader thread.
         """
-        while 1:
+        while True:
             _log('info', ' * Restarting with %s' % self.name)
             args = [sys.executable] + sys.argv
             new_environ = os.environ.copy()
